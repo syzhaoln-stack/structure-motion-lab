@@ -20,12 +20,12 @@ function selectLesson(i,scroll=true){
   playing=false;drag=null;dragDirty=false;focusLab(false);if(Object.keys(params).length)saved[idx]={params:{...params}};
   idx=ACTIVE.includes(i)?i:8;params={...lesson().defaults,...saved[idx]?.params};phase=1;t=0;
   $('#title').textContent=lesson().title;$('#scene').textContent=lesson().scene;$('#chapter-label').textContent=`实验 ${lessonNumber(idx)} · ${lesson().name}`;
-  document.body.dataset.experiment=idx;$('#focus-settings').hidden=idx!==3;$('#full-views').open=false;$('#full-views').hidden=idx===0||idx===5||idx===8;
+  document.body.dataset.experiment=idx;$('#focus-settings').hidden=idx!==3;$('#full-views').open=false;$('#full-views').hidden=idx===5||idx===8;
   $('#count').textContent=`${ACTIVE.indexOf(idx)+1} / ${ACTIVE.length}`;$('#prev').disabled=idx===ACTIVE[0];$('#next-top').disabled=idx===ACTIVE.at(-1);
   $('#operation-guide').textContent=lesson().task;
   $('#visual-caption').textContent=lesson().caption;$('#chart-note').textContent=lesson().note;$('#model').innerHTML=lesson().model+`<p class="quiet">来源：${esc(lesson().source)}</p>`;$('#advanced').open=false;
   $('#scrub').max=lesson().duration;$('#duration-label').textContent=idx===7?'0—2 个周期':`0—${lesson().duration} s`;
-  $('#parameter-controls').innerHTML=lesson().params.filter(p=>!p.advanced&&!p.compactFold).map(controlMarkup).join('')+(lesson().params.some(p=>p.compactFold)?'<details class="extra-controls phase-control"><summary>阶段：稳态 / 启动</summary>'+lesson().params.filter(p=>p.compactFold).map(controlMarkup).join('')+'</details>':'')+(lesson().params.some(p=>p.advanced)?`<details class="extra-controls"><summary>${idx===0?'质量、刚度与外力幅值':idx===3?'结构参数：m · k · ζ':'结构频率与荷载幅值'}</summary>${lesson().params.filter(p=>p.advanced).map(controlMarkup).join('')}</details>`:'');
+  $('#parameter-controls').innerHTML=lesson().params.filter(p=>!p.advanced&&!p.compactFold).map(controlMarkup).join('')+(lesson().params.some(p=>p.compactFold)?'<details class="extra-controls phase-control"><summary>阶段：稳态 / 启动</summary>'+lesson().params.filter(p=>p.compactFold).map(controlMarkup).join('')+'</details>':'')+(lesson().params.some(p=>p.advanced)?`<details class="extra-controls"><summary>${idx===3?'结构参数：m · k · ζ':'结构频率与荷载幅值'}</summary>${lesson().params.filter(p=>p.advanced).map(controlMarkup).join('')}</details>`:'');
   renderMenu();prepare();renderPhase();drawFrame();renderSource();
   focusForPhone();if(scroll)window.scrollTo({top:0,behavior:'instant'});
   try{history.replaceState(null,'','#'+idx);}catch{}
@@ -39,22 +39,19 @@ function renderPhase(){
 function renderSource(){const names=idx<6||idx===8?['Dynamics.m']:idx===6?['Dynamics_MDOF.m']:['Dynamics_MDOF.m','bridge_mode.m','bridge_mode_241011.m','cantilever_beam.html','bridge_vibration.html'];$('#source-select').innerHTML=names.map(n=>`<option>${n}</option>`).join('');$('#source-code').textContent=ORIGINAL_SOURCES[names[0]];$('#code-context').textContent=lesson().source;$('#original-code').open=false;}
 function getSample(time){
  switch(idx){
- case 0:return DrivenLab.sample(time,params);
+ case 0:{const r=P.free(time,{x0:params.amplitude*.01});return {...r,x:r.x*100,v:r.v*100,a:r.a*100,values:[r.x*100]};}
  case 1:{const r=P.free(time,{m:params.mass,x0:(params.amplitude??1)*.01}),ref=P.free(time,{x0:(params.amplitude??1)*.01});return {...r,x:r.x*100,v:r.v*100,a:r.a*100,ref:ref.x*100,values:[r.x*100,ref.x*100]};}
  case 2:{const r=P.free(time,{z:params.damping,x0:(params.amplitude??1)*.01}),ref=P.free(time,{x0:(params.amplitude??1)*.01});return {...r,x:r.x*100,v:r.v*100,a:r.a*100,ref:ref.x*100,values:[r.x*100,ref.x*100]};}
  case 3:{const k=params.stiffness,m=params.mass,fn=Math.sqrt(k/m)/P.tau,c=2*params.damping*Math.sqrt(k*m),ratio=params.frequency/fn,r=P.harmonic(time,{r:ratio,k,m,z:params.damping,rest:params.response==='start'});return {...r,xSI:r.x,vSI:r.v,aSI:r.a,k,m,c,fn,ratio,ma:m*r.a,cv:c*r.v,kx:k*r.x,x:r.x*k,v:r.v*k,values:[r.x*k,r.F]};}
  case 4:{const r=P.pulse(time,{duration:params.duration});return {...r,values:[r.x]};}
- case 5:{const q=SpectrumLab.info(params),r=P.harmonic(time,{r:q.r,z:params.damping,k:q.k,F0:params.force,rest:false});return {...r,xSI:r.x,x:r.x*100,values:[r.x*100,r.F]};}
+ case 5:{const q=SpectrumLab.info(params),r=P.harmonic(time,{r:q.r,z:params.damping,k:q.k,F0:params.force,rest:false});return {...r,xSI:r.x,x:r.x*q.k,values:[r.x*q.k,r.F]};}
  case 6:{const r=P.modes(time,{pattern:params.pattern});return {...r,x:r.x1,values:[r.x1,r.x2]};}
  case 7:{const shape=P.beamShape(params.sensor,Number(params.mode),params.support),x=shape*Math.cos(P.tau*time/5);return {x,shape,values:[x]};}
  }
 }
 function prepare(){
- if(idx!==0)DrivenLab.clear();
  if(idx===8){axis={min:-10,max:10,end:1};detailDirty=false;detailReady=false;Workbench.clear();StructuralView.setup(idx,params,10);StaticLab.setup(params,value=>changeParam('force',value));return;}
  StaticLab.clear();
- if(idx===0){axis={min:-InstrumentScale.limit(params),max:InstrumentScale.limit(params),end:4};detailDirty=false;detailReady=false;Workbench.clear();StructuralView.setup(8,params,axis.max);DrivenLab.setup(params);$('#param-frequency').step='any';$('#param-frequency').value=params.frequency;$('#scrub').max=4;$('#duration-label').textContent='0—4 s';$('#scrub-title').textContent='同步时间';return;}
- if(idx===5){axis={min:-InstrumentScale.limit(params),max:InstrumentScale.limit(params),end:4};detailDirty=false;detailReady=false;Workbench.clear();StructuralView.setup(8,params,axis.max);SpectrumLab.setup(params);const input=$('#param-frequency');input.max=3*params.natural;input.value=params.frequency;input.nextElementSibling.lastElementChild.textContent=f(3*params.natural,2)+' Hz';$('#scrub').max=4;$('#duration-label').textContent='0—4 s';$('#scrub-title').textContent='同步时间';return;}
  if(idx===3)lesson().duration=params.response==='steady'?8:24;
  $('#scrub').max=lesson().duration;$('#duration-label').textContent=idx===7?'0—2 个周期':`0—${lesson().duration} s`;
  const limits=[1.6,1.6,freeLimit(),InstrumentScale.limit(params),2.2,InstrumentScale.limit(params),1.2,1.1];axis={min:-limits[idx],max:limits[idx],end:lesson().duration};
@@ -63,6 +60,7 @@ function prepare(){
  if(idx===1||idx===2)series.push({name:idx===1?'原来的 1 kg':'无阻尼基准',color:G,dash:'9 7'});
  if(idx===3)series.push({name:'外力 ÷ 刚度',color:O,dash:'7 6'});
  if(idx===3){series[0].name='位移 kx/F₀';series[1].name='外力 F/F₀';}
+ if(idx===5){series[0].name='响应 kx（N）';series.push({name:'荷载 F（N）',color:O,dash:'7 6'});}
  if(idx===6)series.push({name:'右边物体',color:O});
  $('#legend').innerHTML=series.map(s=>`<span><i class="swatch ${s.color===G?'gray':s.color===O?'orange':''}"></i>${s.name}</span>`).join('');
  cache=Array.from({length:801},(_,i)=>({t:i*axis.end/800,...getSample(i*axis.end/800)}));
@@ -74,7 +72,7 @@ function prepare(){
  $('#chart').innerHTML=`<defs><clipPath id="plot-area"><rect x="64" y="30" width="552" height="165"/></clipPath><clipPath id="history-clip"><rect id="history-rect" x="64" y="30" width="0" height="165"/></clipPath></defs>${grid}<text x="64" y="22">${idx<=2?'cm':idx===7?'相对位移':'相对位移'}</text><text x="616" y="22" text-anchor="end">${idx===7?'时间 / 当前周期':'时间 s'}</text><g clip-path="url(#plot-area)">${extra}${paths}</g><line id="time-cursor" x1="64" x2="64" y1="30" y2="192" stroke="${T}" stroke-width="2"/><circle id="time-dot" cx="64" cy="112" r="5" fill="${B}"/>`;
  const chartLabels=$('#chart').querySelectorAll('text');chartLabels[chartLabels.length-2].textContent=idx===5?'N':idx===3?'无量纲':idx<=2?'cm':'相对位移';
  detailDirty=true;detailReady=false;if($("#full-views").open){LabExtension.setup(idx,params,getSample,axis.end,axis.max);detailReady=true;detailDirty=false;}
- Workbench.setup(idx,params,getSample,axis.end,axis.max);$("#scrub-title").textContent="同步时间";StructuralView.setup(idx,params,axis.max);syncFrequency();
+ if(idx===5){SpectrumLab.setup(params);const input=$("#param-frequency");input.max=3*params.natural;input.value=params.frequency;input.nextElementSibling.lastElementChild.textContent=f(3*params.natural,2)+" Hz";$("#scrub-title").textContent="同步时间 · 频率保持不变";}else{Workbench.setup(idx,params,getSample,axis.end,axis.max);$("#scrub-title").textContent="同步时间";}StructuralView.setup(idx,params,axis.max);syncFrequency();
 }
 function spring(x1,x2,y,color=G){const length=x2-x1;let points=`${x1},${y} ${x1+length*.12},${y}`;for(let j=0;j<12;j++)points+=` ${x1+length*(.15+.7*j/11)},${y+(j%2?9:-9)}`;points+=` ${x2-length*.12},${y} ${x2},${y}`;return `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="3" stroke-linejoin="round"/>`;}
 function arrow(x,y,v,color,label=''){if(Math.abs(v)<.02)return '';const end=x+Math.sign(v)*Math.min(90,Math.max(12,Math.abs(v))),sign=Math.sign(v);return `<path d="M${x} ${y}H${end}m${-sign*8} -5l${sign*8} 5l${-sign*8} 5" fill="none" stroke="${color}" stroke-width="3"/>${label?`<text x="${x}" y="${y-11}" fill="${color}">${label}</text>`:''}`;}
@@ -92,8 +90,6 @@ function apparatus(r){
  return svg;
 }
 function drawFrame(){
- if(idx===0){DrivenLab.draw(t);$('#scrub').value=t;$('#time').textContent=f(t)+' s';return;}
- if(idx===5){SpectrumLab.draw(t);$('#scrub').value=t;$('#time').textContent=f(t)+' s';return;}
  if(idx===8){StaticLab.draw();return;}
  const r=getSample(t);$('#apparatus').innerHTML=apparatus(r);const xx=64+t/axis.end*552,yy=112-r.values[0]/axis.max*78;
  $('#time-cursor').setAttribute('x1',xx);$('#time-cursor').setAttribute('x2',xx);$('#time-dot').setAttribute('cx',xx);$('#time-dot').setAttribute('cy',yy);$('#time-dot').style.visibility=Math.abs(r.values[0])>axis.max?'hidden':'visible';$('#history-rect').setAttribute('width',552);
@@ -124,7 +120,7 @@ $('#open-menu').onclick=()=>{const closed=$('#course-menu').hidden;$('#course-me
 $('#prev').onclick=()=>selectLesson(ACTIVE[ACTIVE.indexOf(idx)-1]);$('#next-top').onclick=()=>selectLesson(ACTIVE[ACTIVE.indexOf(idx)+1]);
 $('#full-views').addEventListener('toggle',()=>{if($('#full-views').open&&detailDirty){LabExtension.setup(idx,params,getSample,axis.end,axis.max);detailReady=true;detailDirty=false;drawFrame();}});
 $('#lab-lesson').onchange=e=>{selectLesson(Number(e.target.value),false);focusForPhone();};
-document.addEventListener('change',e=>{if(e.target.id==='driven-case'&&e.target.value!=='manual')changeParam('frequency',Number(e.target.value)*Math.sqrt(params.stiffness/params.mass)/P.tau);if(e.target.id==='display-range')changeParam('displayRange',Number(e.target.value));if(e.target.id==='single-case'&&e.target.value!=='manual')changeParam('frequency',Number(e.target.value)*params.natural);if(e.target.dataset.number){if(e.target.value!==''&&e.target.validity.valid)changeParam(e.target.dataset.number,Number(e.target.value));else e.target.value=Number(params.damping).toFixed(3);}if(e.target.id==='typical-case'&&e.target.value!=='manual'){params.response='steady';changeParam('frequency',Number(e.target.value)*Math.sqrt(params.stiffness/params.mass)/P.tau);}if(e.target.id==='damping-case'&&e.target.value!=='manual')changeParam('damping',Number(e.target.value));});
+document.addEventListener('change',e=>{if(e.target.id==='display-range')changeParam('displayRange',Number(e.target.value));if(e.target.id==='single-case'&&e.target.value!=='manual')changeParam('frequency',Number(e.target.value)*params.natural);if(e.target.dataset.number){if(e.target.value!==''&&e.target.validity.valid)changeParam(e.target.dataset.number,Number(e.target.value));else e.target.value=Number(params.damping).toFixed(3);}if(e.target.id==='typical-case'&&e.target.value!=='manual'){params.response='steady';changeParam('frequency',Number(e.target.value)*Math.sqrt(params.stiffness/params.mass)/P.tau);}if(e.target.id==='damping-case'&&e.target.value!=='manual')changeParam('damping',Number(e.target.value));});
 $('#focus-settings').onclick=()=>{playing=false;const on=document.body.classList.toggle('show-settings');$('#focus-settings').textContent=on?'收起参数':'参数';if(on)document.querySelectorAll('#parameter-controls>details').forEach(d=>d.open=true);else document.querySelectorAll('#parameter-controls>details').forEach(d=>d.open=false);renderPhase();};
 $('#focus-lab').onclick=()=>focusLab(!document.body.classList.contains('lab-focus'));
 $('#play').onclick=()=>{focusForPhone();if(t>=axis.end){t=0;if(idx===5)SpectrumLab.setup(params);}playing=!playing;last=0;renderPhase();drawFrame();};
@@ -138,11 +134,11 @@ $('#download-source').onclick=()=>{const name=$('#source-select').value,url=URL.
 const cart=$("#apparatus");
 function pointerPosition(e){const pt=new DOMPoint(e.clientX,e.clientY).matrixTransform(cart.getScreenCTM().inverse());return pt.x;}
 function dragMove(e){if(!drag||e.pointerId!==drag.id)return;params.amplitude=Math.max(-1.5,Math.min(1.5,Math.round((pointerPosition(e)-drag.offset-334)/drag.scale*100)/100));t=0;dragDirty=true;if(idx===0){$("#param-amplitude").value=params.amplitude;$("#value-amplitude").textContent=f(params.amplitude)+" cm";}}
-cart.addEventListener('pointerdown',e=>{if(idx===0||idx>2||!e.target.closest('[data-drag-cart]')||e.button!==0)return;e.preventDefault();const r=getSample(t),scale=cartScale();playing=false;t=0;drag={id:e.pointerId,scale,offset:pointerPosition(e)-(334+Math.max(-1.5,Math.min(1.5,r.x))*scale)};cart.setPointerCapture(e.pointerId);dragMove(e);renderPhase();});
+cart.addEventListener('pointerdown',e=>{if(idx>2||!e.target.closest('[data-drag-cart]')||e.button!==0)return;e.preventDefault();const r=getSample(t),scale=cartScale();playing=false;t=0;drag={id:e.pointerId,scale,offset:pointerPosition(e)-(334+Math.max(-1.5,Math.min(1.5,r.x))*scale)};cart.setPointerCapture(e.pointerId);dragMove(e);renderPhase();});
 cart.addEventListener('pointermove',dragMove);
 function endDrag(e,cancel=false){if(!drag||e.pointerId!==drag.id)return;if(!cancel)dragMove(e);drag=null;dragDirty=false;if(cart.hasPointerCapture(e.pointerId))cart.releasePointerCapture(e.pointerId);prepare();t=0;playing=!cancel;last=0;renderPhase();drawFrame();if(!cancel)focusForPhone();}
 cart.addEventListener('pointerup',e=>endDrag(e));cart.addEventListener('pointercancel',e=>endDrag(e,true));
-cart.addEventListener('keydown',e=>{if(idx===0||idx>2||!e.target.closest('[data-drag-cart]'))return;if(['ArrowLeft','ArrowRight',' ','Enter'].includes(e.key)){e.preventDefault();if(e.key==='ArrowLeft'||e.key==='ArrowRight'){changeParam('amplitude',Math.max(-1.5,Math.min(1.5,(params.amplitude??1)+(e.key==='ArrowRight'?.1:-.1))));cart.querySelector('[data-drag-cart]').focus();}else{playing=true;t=0;last=0;focusForPhone();renderPhase();}}});
+cart.addEventListener('keydown',e=>{if(idx>2||!e.target.closest('[data-drag-cart]'))return;if(['ArrowLeft','ArrowRight',' ','Enter'].includes(e.key)){e.preventDefault();if(e.key==='ArrowLeft'||e.key==='ArrowRight'){changeParam('amplitude',Math.max(-1.5,Math.min(1.5,(params.amplitude??1)+(e.key==='ArrowRight'?.1:-.1))));cart.querySelector('[data-drag-cart]').focus();}else{playing=true;t=0;last=0;focusForPhone();renderPhase();}}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')focusLab(false);});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){playing=false;renderPhase();}});
 window.addEventListener('hashchange',()=>{const n=Number(location.hash.slice(1));if(ACTIVE.includes(n)&&n!==idx)selectLesson(n);});
