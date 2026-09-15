@@ -2,7 +2,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const root=__dirname;
 let html=fs.readFileSync(path.join(root,'index-lab.template.html'),'utf8');
-for(const [tag,file] of [['STYLE','style.css'],['PHYSICS','physics.js'],['DIAGNOSTICS','diagnostics.js'],['SCALE','instrument-scale.js'],['VIEWS','phase-views.js'],['LESSONS','lessons.js'],['EXTENSION','extension.js'],['WORKBENCH','workbench.js'],['SPECTRUM','spectrum.js'],['STRUCTURAL','structural-view.js'],['STATIC','static-lab.js'],['APP','app.js']])html=html.replace('/*__'+tag+'__*/',()=>fs.readFileSync(path.join(root,file),'utf8'));
+for(const [tag,file] of [['STYLE','style.css'],['PHYSICS','physics.js'],['DIAGNOSTICS','diagnostics.js'],['SCALE','instrument-scale.js'],['VIEWS','phase-views.js'],['LESSONS','lessons.js'],['EXTENSION','extension.js'],['WORKBENCH','workbench.js'],['SPECTRUM','spectrum.js'],['STRUCTURAL','structural-view.js'],['STATIC','static-lab.js'],['DRIVEN','driven-lab.js'],['APP','app.js']])html=html.replace('/*__'+tag+'__*/',()=>fs.readFileSync(path.join(root,file),'utf8'));
 html=html.replace('/*__ASSETS__*/',()=> 'const STRUCTURAL_ASSETS = '+fs.readFileSync(path.join(root,'structural-model-assets.json'),'utf8')+';');
 const sources=JSON.parse(fs.readFileSync(path.join(root,'original-sources.json'),'utf8'));
 html=html.replace('/*__SOURCES__*/',()=> 'const ORIGINAL_SOURCES = '+JSON.stringify(sources).replace(/</g,'\\u003c')+';');
